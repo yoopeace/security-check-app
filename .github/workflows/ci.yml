@@ -41,7 +41,7 @@ jobs:
           "exit code: $($p.ExitCode)"
           if ($p.ExitCode -ne 0) { exit 1 }
           Get-Item dist\SecurityCheck.exe | Select-Object Name, Length
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: SecurityCheck-windows
           path: dist/SecurityCheck.exe
