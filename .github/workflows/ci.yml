@@ -21,3 +21,28 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: Run tests
         run: pytest -v
+
+  build-windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Build SecurityCheck.exe
+        run: pyinstaller --noconfirm --onefile --windowed --name SecurityCheck --collect-data customtkinter seccheck/__main__.py
+      - name: Smoke test (실행 파일이 켜지는지)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\SecurityCheck.exe -ArgumentList '--smoke-test' -Wait -PassThru
+          "exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { exit 1 }
+          Get-Item dist\SecurityCheck.exe | Select-Object Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SecurityCheck-windows
+          path: dist/SecurityCheck.exe
+          retention-days: 30

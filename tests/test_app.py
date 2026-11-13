@@ -125,3 +125,10 @@ def test_확인_창은_처음에_아니오에_초점이_있다():
         assert dialog.default_choice == "no"
     finally:
         dialog.close()
+
+
+# ── 실행 파일 점검용 ──
+
+def test_smoke_test_옵션이면_창을_만들었다가_바로_닫고_0을_돌려준다():
+    from seccheck.app import main
+    assert main(["--smoke-test"]) == 0

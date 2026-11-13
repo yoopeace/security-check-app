@@ -1,3 +1,3 @@
 from seccheck.app import main
 
-main()
+raise SystemExit(main())

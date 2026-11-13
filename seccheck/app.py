@@ -3,6 +3,7 @@
 판단은 모두 actions·integrity_check 가 하고, 이 파일은 버튼과 결과 그리기만 맡는다.
 """
 
+import sys
 from datetime import datetime
 from tkinter import filedialog, messagebox
 
@@ -283,5 +284,13 @@ class App(ctk.CTk):
         IntegrityTab(tabs.add(self.tab_names[1])).pack(fill="both", expand=True, padx=8, pady=8)
 
 
-def main():
-    App().mainloop()
+def main(argv=None) -> int:
+    """앱 진입점. --smoke-test 면 창을 만들었다가 바로 닫는다 (CI 에서 실행 파일이 켜지는지 확인용)."""
+    argv = sys.argv[1:] if argv is None else argv
+    app = App()
+    if "--smoke-test" in argv:
+        app.update()
+        app.destroy()
+        return 0
+    app.mainloop()
+    return 0
