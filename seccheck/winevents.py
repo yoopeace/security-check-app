@@ -33,6 +33,8 @@ class EvtxRead:
     total: int                # 파일 안의 전체 기록 수
     unreadable: int           # 읽지 못한 기록 수
     channels: frozenset       # 파일에 들어 있던 채널 이름들
+    logon_records: int = 0    # 로그인 성공·실패 기록(4624·4625) 수. 0 이면 감사 정책이 꺼져 있을 수 있다
+    period_utc: tuple | None = None   # 파일 전체 기록의 (처음, 끝) 시각
 
 
 def _local_name(tag: str) -> str:
