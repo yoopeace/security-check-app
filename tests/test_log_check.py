@@ -146,3 +146,21 @@ def test_위험이_확인_필요보다_먼저_나온다():
               ev(1102, "2026-11-13 05:00:00", SubjectUserName="kim")]
     levels = [f.level for f in check_events(read_of(events)).findings]
     assert levels == [Level.DANGER, Level.CHECK]
+
+
+# ── 로그에서 읽은 이름을 화면에 그대로 보이지 않게 ──
+
+def test_계정_이름의_보이지_않는_문자는_눈에_보이는_표시로_바꾼다():
+    # 공격자가 'adm<U+202E>nimda' 같은 이름으로 계정을 만들면 화면에서 다른 이름처럼 보일 수 있다
+    disguised = "adm" + chr(0x202E) + "nimda"
+    report = check_events(read_of([ev(4720, "2026-11-13 03:00:00", TargetUserName=disguised)]))
+    message = messages(report)[0]
+    assert chr(0x202E) not in message
+    assert "adm\\u202enimda" in message
+
+
+def test_로그인_실패_대상_IP_의_제어문자도_표시로_바꾼다():
+    report = check_events(read_of(burst(45, ip="10.0.0.5" + chr(0x1B) + "[31m")))
+    message = messages(report, Level.DANGER)[0]
+    assert chr(0x1B) not in message
+    assert "10.0.0.5\\x1b[31m" in message

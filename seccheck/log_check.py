@@ -15,6 +15,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from checker import safe_path
 from log_analyzer import DEFAULT_TIERS, judge_failures
 
 from seccheck.verdict import Finding, Level, overall
@@ -126,6 +127,9 @@ def check_events(read: EvtxRead, tiers=DEFAULT_TIERS) -> LogReport:
     if read.unreadable:
         findings.append(Finding(Level.CHECK, f"읽지 못한 기록이 {read.unreadable}건 있습니다."))
 
+    # 계정 이름·IP 는 로그에서 읽은 값이라 공격자가 보이지 않는 문자를 심을 수 있다.
+    # 화면·보고서에서 다른 이름처럼 보이지 않게 그런 문자는 '\\u202e' 같은 표시로 바꾼다.
+    findings = [Finding(f.level, safe_path(f.message)) for f in findings]
     findings.sort(key=lambda f: -f.level)   # 위험 → 확인 필요 (같은 단계 안에서는 순서 유지)
     period = tuple(_kst(t) for t in read.period_utc) if read.period_utc else None
     return LogReport(overall(findings), findings, read.total, period)
