@@ -1,0 +1,4 @@
+customtkinter>=6,<7
+python-evtx>=0.8,<0.9
+log-analyzer @ git+https://github.com/yoopeace/log-analyzer@v1.0.0
+file-integrity-checker @ git+https://github.com/yoopeace/file-integrity-checker@v1.0.0
