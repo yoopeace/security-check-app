@@ -77,6 +77,18 @@ def _name(value: str | None, fallback: str | None = None) -> str:
     return fallback if fallback not in EMPTY_NAMES else "(알 수 없음)"
 
 
+def _member(data: dict, names_by_sid: dict) -> str:
+    """4732 의 추가된 구성원: 이름이 있으면 이름, SID 뿐이면 '이름 (SID)' 또는 SID."""
+    name = (data.get("MemberName") or "").strip()
+    if name not in EMPTY_NAMES:
+        return name
+    sid = (data.get("MemberSid") or "").strip()
+    if sid in EMPTY_NAMES:
+        return "(알 수 없음)"
+    known = (names_by_sid.get(sid) or "").strip()
+    return f"{known} ({sid})" if known not in EMPTY_NAMES else sid
+
+
 def check_events(read: EvtxRead, tiers=DEFAULT_TIERS) -> LogReport:
     findings = []
 
@@ -86,6 +98,10 @@ def check_events(read: EvtxRead, tiers=DEFAULT_TIERS) -> LogReport:
                                 f"로그인 반복 실패({alert.tier}): {alert.ip} — "
                                 f"{_window_text(alert.window_minutes)} 안에 {alert.count}회 "
                                 f"({_range_text(alert.start, alert.end)})"))
+
+    # 구성원이 SID 로만 남은 경우 사람이 읽을 수 있게, 같은 로그의 계정 생성 기록에서 이름을 찾는다
+    names_by_sid = {e.data.get("TargetSid"): e.data.get("TargetUserName")
+                    for e in read.events if e.event_id == ACCOUNT_CREATED and e.data.get("TargetSid")}
 
     for e in sorted(read.events, key=lambda e: e.time_utc):
         if e.event_id == LOG_CLEARED:
@@ -98,7 +114,7 @@ def check_events(read: EvtxRead, tiers=DEFAULT_TIERS) -> LogReport:
             findings.append(Finding(Level.CHECK, f"새 계정이 만들어졌습니다: {_name(e.data.get('TargetUserName'))} "
                                                  f"({_when(e.time_utc)})"))
         elif e.event_id == ADDED_TO_LOCAL_GROUP and e.data.get("TargetSid") == ADMINISTRATORS_SID:
-            member = _name(e.data.get("MemberName"), e.data.get("MemberSid"))
+            member = _member(e.data, names_by_sid)
             findings.append(Finding(Level.CHECK, f"관리자 그룹에 계정이 추가되었습니다: {member} "
                                                  f"({_when(e.time_utc)})"))
 

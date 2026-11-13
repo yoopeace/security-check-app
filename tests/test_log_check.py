@@ -101,6 +101,14 @@ def test_관리자_그룹에_추가되면_확인_필요():
     assert messages(report) == ["관리자 그룹에 계정이 추가되었습니다: S-1-5-21-1-2-3-1001 (2026-11-13 12:00)"]
 
 
+def test_관리자_그룹_구성원이_SID뿐이면_같은_로그의_계정_생성_기록에서_이름을_찾는다():
+    sid = "S-1-5-21-1-2-3-1001"
+    created = ev(4720, "2026-11-13 02:00:00", TargetUserName="hong", TargetSid=sid)
+    added = ev(4732, "2026-11-13 03:00:00", TargetSid="S-1-5-32-544", MemberName="-", MemberSid=sid)
+    report = check_events(read_of([created, added]))
+    assert f"관리자 그룹에 계정이 추가되었습니다: hong ({sid}) (2026-11-13 12:00)" in messages(report)
+
+
 def test_관리자가_아닌_그룹에_추가된_것은_무시한다():
     added = ev(4732, "2026-11-13 03:00:00", TargetSid="S-1-5-32-555", MemberName="CN=kim")
     assert check_events(read_of([added])).level == Level.OK
