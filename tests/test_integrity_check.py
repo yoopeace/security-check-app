@@ -1,9 +1,13 @@
 """파일 무결성 탭의 판정 (file-integrity-checker 를 감싼 것)"""
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
+
+# 윈도우는 chmod 로 파일 읽기를 막을 수 없다 (읽지 못하는 파일은 잠긴 파일·접근 권한으로 생기고, 같은 경로로 처리된다)
+needs_chmod = pytest.mark.skipif(sys.platform == "win32", reason="윈도우에서는 chmod 로 읽기를 막을 수 없음")
 
 from seccheck import integrity_check
 from seccheck.integrity_check import integrity_dir_for, make_baseline, verify
@@ -73,20 +77,20 @@ def test_이미_기준선이_있으면_덮어쓰지_않고_확인을_요청한�
     folder = make_folder(tmp_path, {"a.txt": "원본"})
     make_baseline(str(folder))
     snapshot = integrity_dir_for(str(folder)) / "snapshot.json"
-    original = snapshot.read_text()
-    (folder / "a.txt").write_text("변조")
+    original = snapshot.read_text(encoding="utf-8")
+    (folder / "a.txt").write_text("변조", encoding="utf-8")
 
     report = make_baseline(str(folder))
 
     assert report.level == Level.CHECK
     assert messages(report) == ["이미 기준선이 있습니다. 새로 만들면 이전 기준이 사라집니다."]
-    assert snapshot.read_text() == original, "변조된 상태가 새 기준선으로 기록되면 안 된다"
+    assert snapshot.read_text(encoding="utf-8") == original, "변조된 상태가 새 기준선으로 기록되면 안 된다"
 
 
 def test_덮어쓰기를_확인하면_새_기준선을_만든다(tmp_path):
     folder = make_folder(tmp_path, {"a.txt": "원본"})
     make_baseline(str(folder))
-    (folder / "a.txt").write_text("수정")
+    (folder / "a.txt").write_text("수정", encoding="utf-8")
     assert make_baseline(str(folder), replace=True).level == Level.OK
     assert verify(str(folder)).level == Level.OK
 
@@ -97,6 +101,7 @@ def test_없는_폴더로는_기준선을_만들_수_없다(tmp_path):
     assert messages(report) == [f"폴더를 찾을 수 없습니다: {tmp_path / '없음'}"]
 
 
+@needs_chmod
 def test_읽지_못한_파일이_있으면_기준선을_만들지_않는다(tmp_path):
     folder = make_folder(tmp_path, {"a.txt": "원본", "blocked.txt": "비밀"})
     (folder / "blocked.txt").chmod(0o000)
@@ -123,9 +128,9 @@ def test_바뀐_것이_없으면_이상_없음(tmp_path):
 def test_바뀐_파일_사라진_파일_새로_생긴_파일은_위험(tmp_path):
     folder = make_folder(tmp_path, {"a.txt": "원본", "b.txt": "원본"})
     make_baseline(str(folder))
-    (folder / "a.txt").write_text("변조")
+    (folder / "a.txt").write_text("변조", encoding="utf-8")
     (folder / "b.txt").unlink()
-    (folder / "c.txt").write_text("새 파일")
+    (folder / "c.txt").write_text("새 파일", encoding="utf-8")
 
     report = verify(str(folder))
 
@@ -133,6 +138,7 @@ def test_바뀐_파일_사라진_파일_새로_생긴_파일은_위험(tmp_path)
     assert messages(report, Level.DANGER) == ["바뀐 파일: a.txt", "사라진 파일: b.txt", "새로 생긴 파일: c.txt"]
 
 
+@needs_chmod
 def test_확인하지_못한_파일이_있으면_확인_필요(tmp_path):
     folder = make_folder(tmp_path, {"a.txt": "원본", "b.txt": "원본"})
     make_baseline(str(folder))
@@ -157,7 +163,7 @@ def test_기준선이_조작되면_확인_필요(tmp_path):
     folder = make_folder(tmp_path, {"a.txt": "원본"})
     make_baseline(str(folder))
     snapshot = integrity_dir_for(str(folder)) / "snapshot.json"
-    snapshot.write_text(snapshot.read_text().replace("a.txt", "z.txt"))
+    snapshot.write_text(snapshot.read_text(encoding="utf-8").replace("a.txt", "z.txt"), encoding="utf-8")
 
     report = verify(str(folder))
 
