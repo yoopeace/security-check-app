@@ -8,8 +8,11 @@
 """
 
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
+
+from Evtx.Evtx import Evtx
 
 NS = "{http://schemas.microsoft.com/win/2004/08/events/event}"
 
@@ -90,3 +93,71 @@ def parse_event_xml(xml: str) -> WinEvent:
             data[_local_name(item.tag)] = item.text or ""
 
     return WinEvent(event_id, time_utc, channel, data)
+
+
+# ─────────────────────────────────────────
+# .evtx 파일 읽기
+# ─────────────────────────────────────────
+
+WANTED_IDS = frozenset({4625, 1102, 4740, 4720, 4732})   # 판정에 쓰는 이벤트 (log_check)
+LOGON_IDS = frozenset({4624, 4625})                       # 감사 정책이 켜져 있다는 근거
+PROGRESS_EVERY = 1000
+
+
+class EvtxUnreadable(Exception):
+    """파일을 열 수 없거나 .evtx 형식이 아니다."""
+
+
+class OperationCancelled(Exception):
+    """사용자가 취소했다."""
+
+
+def read_evtx(path: str, wanted_ids=WANTED_IDS,
+              progress: Callable[[int], None] | None = None,
+              cancelled: Callable[[], bool] | None = None) -> EvtxRead:
+    """.evtx 파일을 읽어 판정에 필요한 이벤트만 모은다. 파일은 읽기 전용으로만 연다.
+
+    기록 하나가 깨져 있으면 unreadable 로 세고 다음 기록을 읽는다.
+    progress 는 1000건마다 지금까지 읽은 수로, cancelled() 가 참이면 OperationCancelled.
+    """
+    events, channels = [], set()
+    total = unreadable = logon_records = 0
+    first = last = None
+    try:
+        with Evtx(path) as log:
+            if not log.get_file_header().check_magic():
+                raise EvtxUnreadable("이벤트 로그(.evtx) 파일이 아닙니다.")
+            records = log.records()
+            while True:
+                if cancelled is not None and cancelled():
+                    raise OperationCancelled()
+                try:
+                    record = next(records)
+                except StopIteration:
+                    break
+                except Exception:
+                    # 기록 묶음(chunk) 자체가 깨지면 그 뒤는 더 읽을 수 없다
+                    unreadable += 1
+                    break
+                total += 1
+                try:
+                    event = parse_event_xml(record.xml())
+                except Exception:
+                    unreadable += 1
+                else:
+                    channels.add(event.channel)
+                    first = event.time_utc if first is None or event.time_utc < first else first
+                    last = event.time_utc if last is None or event.time_utc > last else last
+                    if event.event_id in LOGON_IDS:
+                        logon_records += 1
+                    if event.event_id in wanted_ids:
+                        events.append(event)
+                if progress is not None and total % PROGRESS_EVERY == 0:
+                    progress(total)
+    except (EvtxUnreadable, OperationCancelled):
+        raise
+    except Exception as e:
+        raise EvtxUnreadable(f"파일을 읽을 수 없습니다: {e}") from e
+
+    period = (first, last) if first is not None else None
+    return EvtxRead(events, total, unreadable, frozenset(channels), logon_records, period)
